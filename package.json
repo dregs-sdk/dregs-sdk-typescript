@@ -1,0 +1,86 @@
+{
+  "name": "@dregs/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Dregs, the fraud and abuse scoring service.",
+  "keywords": [
+    "dregs",
+    "fraud",
+    "abuse",
+    "fraud-detection",
+    "bot-detection",
+    "risk-scoring"
+  ],
+  "homepage": "https://dregs.com",
+  "bugs": "https://github.com/dregs-sdk/dregs-sdk-typescript/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dregs-sdk/dregs-sdk-typescript.git"
+  },
+  "license": "MIT",
+  "author": "Dregs <support@dregs.com>",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./webhooks": {
+      "import": {
+        "types": "./dist/webhooks.d.ts",
+        "default": "./dist/webhooks.js"
+      },
+      "require": {
+        "types": "./dist/webhooks.d.cts",
+        "default": "./dist/webhooks.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "verify:dist": "node scripts/smoke-dist.mjs",
+    "verify:package": "publint && attw --pack . --profile node16"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.2",
+    "@eslint/js": "^9.36.0",
+    "@types/node": "^22.20.4",
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.6.2",
+    "publint": "^0.3.14",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.44.1",
+    "vitest": "^5.0.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

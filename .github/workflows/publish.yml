@@ -1,0 +1,103 @@
+# Publishes to npm when a GitHub Release is published, matching how dregs-mcp releases.
+#
+# Authentication is npm Trusted Publishing: npm is configured to trust this repository and this
+# workflow file over OIDC, so there is no token in repository secrets and the published package
+# carries a provenance attestation. Configure the publisher at
+# https://www.npmjs.com/package/@dregs/sdk/access under "Trusted publisher" with:
+#
+#   owner: dregs-sdk    repository: dregs-sdk-typescript    workflow: publish.yml    environment: npm
+#
+# If trusted publishing is unavailable for this package, the fallback is a granular npm access
+# token in the `npm` environment as the secret NPM_TOKEN, surfaced to the publish step as
+# `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`, with `id-token: write` and `--provenance` kept so
+# the attestation is still produced. Prefer OIDC: a token that never exists cannot leak.
+#
+# The `npm` environment is the approval gate: a release cannot reach the registry without
+# whoever is named as its reviewer signing off.
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      # A tag that disagrees with the packaged version would publish something other than what
+      # the release notes describe, and a version cannot be reused on npm once it is taken.
+      - name: Check that the release tag matches the package version
+        if: github.event_name == 'release'
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag="${GITHUB_REF_NAME#v}"
+          echo "package.json=$version tag=$tag"
+          test "$version" = "$tag"
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify the package
+        run: npm run verify:package
+
+      - name: Load the build as ESM and CommonJS
+        run: npm run verify:dist
+
+      - name: Pack
+        run: npm pack --pack-destination dist-package
+
+      - name: Upload the package
+        uses: actions/upload-artifact@v5
+        with:
+          name: package
+          path: dist-package/*.tgz
+
+  publish:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/@dregs/sdk
+    permissions:
+      id-token: write # required for Trusted Publishing and provenance; nothing else needs a token
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs npm 11.5.1 or newer, which is ahead of what some runner images
+      # ship with Node 22.
+      - name: Update npm
+        run: npm install --global npm@latest
+
+      - name: Download the package
+        uses: actions/download-artifact@v5
+        with:
+          name: package
+          path: dist-package
+
+      - name: Publish
+        run: npm publish "$(ls dist-package/*.tgz)" --provenance --access public
