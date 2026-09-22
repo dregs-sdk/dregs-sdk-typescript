@@ -147,7 +147,7 @@ export interface TrackOptions {
  * the `pk_` public key the browser tracker uses.
  *
  * ```ts
- * import { Dregs } from 'dregs';
+ * import { Dregs } from '@dregs/sdk';
  *
  * const client = new Dregs();
  *

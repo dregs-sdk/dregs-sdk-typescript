@@ -3,8 +3,8 @@
  *
  * A dual-format build that only ever gets imported one way is a build with half its output
  * untested. The identity checks matter as much as the loading: if the two entry points end up
- * with separate copies of the modules they share, `verifyWebhook` imported from `dregs` and
- * from `dregs/webhooks` are different functions, and a `WebhookVerificationError` thrown by one
+ * with separate copies of the modules they share, `verifyWebhook` imported from `@dregs/sdk` and
+ * from `@dregs/sdk/webhooks` are different functions, and a `WebhookVerificationError` thrown by one
  * fails an `instanceof` check against the class exported by the other. Code splitting is what
  * prevents that, and this is what proves it.
  */

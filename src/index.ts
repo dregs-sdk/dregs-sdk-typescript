@@ -4,7 +4,7 @@
  * Send events from your backend, read back the scores and the observations behind them.
  *
  * ```ts
- * import { Dregs } from 'dregs';
+ * import { Dregs } from '@dregs/sdk';
  *
  * const client = new Dregs();
  *

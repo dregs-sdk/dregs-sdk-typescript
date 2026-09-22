@@ -3,7 +3,7 @@
 # Authentication is npm Trusted Publishing: npm is configured to trust this repository and this
 # workflow file over OIDC, so there is no token in repository secrets and the published package
 # carries a provenance attestation. Configure the publisher at
-# https://www.npmjs.com/package/dregs/access under "Trusted publisher" with:
+# https://www.npmjs.com/package/@dregs/sdk/access under "Trusted publisher" with:
 #
 #   owner: dregs-sdk    repository: dregs-sdk-typescript    workflow: publish.yml    environment: npm
 #
@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: npm
-      url: https://www.npmjs.com/package/dregs
+      url: https://www.npmjs.com/package/@dregs/sdk
     permissions:
       id-token: write # required for Trusted Publishing and provenance; nothing else needs a token
     steps:

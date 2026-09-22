@@ -7,7 +7,7 @@
  * re-serializing changes key order and whitespace and will not match.
  *
  * ```ts
- * import { verifyWebhook } from 'dregs/webhooks';
+ * import { verifyWebhook } from '@dregs/sdk/webhooks';
  *
  * app.post('/webhooks/dregs', express.raw({ type: 'application/json' }), (req, res) => {
  *   const event = verifyWebhook({

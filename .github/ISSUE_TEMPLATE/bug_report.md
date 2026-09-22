@@ -11,7 +11,7 @@ labels: bug
 **A minimal example**
 
 ```ts
-import { Dregs } from 'dregs';
+import { Dregs } from '@dregs/sdk';
 
 ...
 ```

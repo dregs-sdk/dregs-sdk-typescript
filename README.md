@@ -1,8 +1,8 @@
 # Dregs TypeScript SDK
 
-[![npm](https://img.shields.io/npm/v/dregs.svg)](https://www.npmjs.com/package/dregs)
-[![Node](https://img.shields.io/node/v/dregs.svg)](https://www.npmjs.com/package/dregs)
-[![License](https://img.shields.io/npm/l/dregs.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@dregs/sdk.svg)](https://www.npmjs.com/package/@dregs/sdk)
+[![Node](https://img.shields.io/node/v/@dregs/sdk.svg)](https://www.npmjs.com/package/@dregs/sdk)
+[![License](https://img.shields.io/npm/l/@dregs/sdk.svg)](LICENSE)
 
 The official TypeScript client for [Dregs](https://dregs.com), which scores the users of your application
 for fraud and abuse across four categories: humanity, authenticity, uniqueness, and behavior.
@@ -10,10 +10,15 @@ for fraud and abuse across four categories: humanity, authenticity, uniqueness, 
 Send events from your backend, read back the scores and the observations behind them.
 
 ```bash
-npm install dregs
+npm install @dregs/sdk
 ```
 
 Node 20 or newer. No runtime dependencies: the SDK calls the runtime's own `fetch`.
+
+> This is the **server-side** SDK, which authenticates with a secret key and can read scores.
+> The browser tracking script is a separate package, [`dregs`](https://www.npmjs.com/package/dregs),
+> and uses the public key. You will usually want both: the tracker in the browser, this on your
+> backend.
 
 ## Getting started
 
@@ -22,7 +27,7 @@ in the Dregs dashboard. It starts with `sk_`. The `pk_` public key is for the br
 read identities or scores.
 
 ```ts
-import { Dregs } from 'dregs';
+import { Dregs } from '@dregs/sdk';
 
 const client = new Dregs({ secretKey: process.env.DREGS_SECRET_KEY });
 ```
@@ -33,7 +38,7 @@ enough. Build one at startup and keep it; there is nothing to close.
 CommonJS works too:
 
 ```js
-const { Dregs } = require('dregs');
+const { Dregs } = require('@dregs/sdk');
 ```
 
 ## Tracking events
@@ -142,7 +147,7 @@ as events arrive, so you rarely need this outside of a support or backfill flow.
 ## Errors
 
 ```ts
-import { DregsError, NotFoundError, QuotaExceededError, RateLimitError } from 'dregs';
+import { DregsError, NotFoundError, QuotaExceededError, RateLimitError } from '@dregs/sdk';
 
 try {
   await client.track('user.signup', { identity: 'user_12345' });
@@ -200,7 +205,7 @@ change.
 
 ```ts
 import express from 'express';
-import { verifyWebhook, WebhookVerificationError } from 'dregs/webhooks';
+import { verifyWebhook, WebhookVerificationError } from '@dregs/sdk/webhooks';
 
 app.post('/webhooks/dregs', express.raw({ type: 'application/json' }), (req, res) => {
   let event;
@@ -226,7 +231,7 @@ app.post('/webhooks/dregs', express.raw({ type: 'application/json' }), (req, res
 ```
 
 `express.raw()` matters: the default `express.json()` hands you a parsed object and the original bytes are
-gone. The helpers are exported from the package root as well, so `import { verifyWebhook } from 'dregs'`
+gone. The helpers are exported from the package root as well, so `import { verifyWebhook } from '@dregs/sdk'`
 works if you would rather not reach for the subpath.
 
 `verifyWebhook` also rejects payloads older than five minutes as replays; pass `tolerance: null` to skip
@@ -253,7 +258,7 @@ one also keeps the body it was built from in `raw`, so a field Dregs adds after 
 without waiting for an SDK upgrade.
 
 ```ts
-import type { Analysis, Category, Identity, Observation, Score, TrackResult } from 'dregs';
+import type { Analysis, Category, Identity, Observation, Score, TrackResult } from '@dregs/sdk';
 ```
 
 ## Contributing

@@ -22,7 +22,7 @@ reference [Python SDK](https://github.com/dregs-sdk/dregs-sdk-python).
   all deriving from `DregsError`.
 - Automatic retries with exponential backoff and full jitter, honouring `Retry-After`.
 - `verifyWebhook()` for checking a webhook's signature and rejecting replays, exported from the
-  package root and from the `dregs/webhooks` subpath.
+  package root and from the `@dregs/sdk/webhooks` subpath.
 - ESM and CommonJS builds with generated declarations for both, and no runtime dependencies.
 
 [Unreleased]: https://github.com/dregs-sdk/dregs-sdk-typescript/compare/v0.1.0...HEAD
