@@ -88,12 +88,17 @@ jobs:
       - name: Load the build as ESM and CommonJS
         run: npm run verify:dist
 
+      # Packed exactly the way publish.yml packs it, so the release path is covered here rather
+      # than discovered during a release. These two invocations drifting apart is what let a
+      # broken pack step reach a tag once already.
       - name: Pack
-        run: npm pack
+        run: |
+          mkdir -p dist-package
+          npm pack --pack-destination dist-package
 
       - name: Upload the package
         uses: actions/upload-artifact@v7
         with:
           name: package
-          path: '*.tgz'
+          path: dist-package/*.tgz
           retention-days: 7
