@@ -1,0 +1,16 @@
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Tooling caches
+coverage/
+.eslintcache
+.vitest/
+
+# Local environment
+.env
+.env.local
+
+# macOS
+.DS_Store
