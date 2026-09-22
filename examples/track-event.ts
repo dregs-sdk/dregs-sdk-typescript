@@ -30,7 +30,7 @@ async function main(): Promise<void> {
     if (result.accepted) {
       console.log(`Recorded event ${result.id}.`);
     } else {
-      // Dregs answers a few rejections quietly rather than naming the check that failed.
+      // Uncommon, and worth a log line: accepted without an event being recorded.
       console.log(`The event was not recorded (status ${result.status}).`);
     }
   } catch (error) {

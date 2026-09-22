@@ -258,8 +258,7 @@ export class Dregs {
    * @param type Your name for the event, such as `"user.signup"`. Map it to one of Dregs's
    *   canonical types under **Settings → Mappings** so the analyzers know what it means.
    * @param options The identity the event belongs to, and anything else worth sending.
-   * @returns The outcome. Check `.accepted` to tell a recorded event from one of the rejections
-   *   Dregs answers quietly.
+   * @returns The outcome. Check `.accepted` to confirm Dregs recorded the event.
    * @throws {QuotaExceededError} The account is over its monthly event limit.
    * @throws {RateLimitError} The credential is ingesting too fast.
    * @throws {AuthenticationError} The secret key was not recognized.
