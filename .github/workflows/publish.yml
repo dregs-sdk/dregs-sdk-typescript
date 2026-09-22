@@ -61,8 +61,12 @@ jobs:
       - name: Load the build as ESM and CommonJS
         run: npm run verify:dist
 
+      # npm does not create --pack-destination, it only writes into it, so the directory has to
+      # exist first or the pack fails with ENOENT on the tarball it was about to write.
       - name: Pack
-        run: npm pack --pack-destination dist-package
+        run: |
+          mkdir -p dist-package
+          npm pack --pack-destination dist-package
 
       - name: Upload the package
         uses: actions/upload-artifact@v5
