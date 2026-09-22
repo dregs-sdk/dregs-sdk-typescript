@@ -7,10 +7,14 @@
 #
 #   owner: dregs-sdk    repository: dregs-sdk-typescript    workflow: publish.yml    environment: npm
 #
-# If trusted publishing is unavailable for this package, the fallback is a granular npm access
-# token in the `npm` environment as the secret NPM_TOKEN, surfaced to the publish step as
-# `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`, with `id-token: write` and `--provenance` kept so
-# the attestation is still produced. Prefer OIDC: a token that never exists cannot leak.
+# Trusted publishing is configured per package on npmjs.com, which needs the package to already
+# exist, so the first release of a new name cannot use it. Until then the publish step falls back
+# to a granular npm access token held as the secret NPM_TOKEN in the `npm` environment. It must be
+# a secret rather than a repository variable: variables are not masked and would print in logs.
+# `id-token: write` and `--provenance` stay either way, so the attestation is produced regardless.
+#
+# Once @dregs/sdk exists on npm, configure the trusted publisher at the URL above, then delete the
+# NODE_AUTH_TOKEN line below and revoke the token. A token that no longer exists cannot leak.
 #
 # The `npm` environment is the approval gate: a release cannot reach the registry without
 # whoever is named as its reviewer signing off.
@@ -103,5 +107,13 @@ jobs:
           name: package
           path: dist-package
 
+      # The tarball is passed with an explicit ./ prefix. npm reads a bare `dir/file` argument as
+      # a GitHub shorthand (owner/repo) and tries to fetch it over git, which fails with
+      # EALLOWGIT rather than anything that points at the real problem.
       - name: Publish
-        run: npm publish "$(ls dist-package/*.tgz)" --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          tarball=$(ls dist-package/*.tgz)
+          test -f "$tarball"
+          npm publish "./$tarball" --provenance --access public
