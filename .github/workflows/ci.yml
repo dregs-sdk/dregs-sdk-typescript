@@ -1,0 +1,99 @@
+# Lint, type-check, test, and build. Every job installs with `npm ci`, which installs exactly
+# what package-lock.json pins and fails outright when the lock disagrees with package.json,
+# rather than quietly resolving something other than what was committed.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint and type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Prettier
+        run: npm run format:check
+
+      - name: TypeScript
+        run: npm run typecheck
+
+  test:
+    name: Test on Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+  build:
+    name: Build the package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # publint catches a broken `exports` map or a file the package forgot to ship, and
+      # are-the-types-wrong catches declarations that resolve for ESM but not CommonJS. Both are
+      # otherwise only discovered by whoever installs the published package. node10 resolution
+      # is ignored: it cannot read `exports` subpaths at all, and this package requires Node 20.
+      - name: Verify the package
+        run: npm run verify:package
+
+      - name: Load the build as ESM and CommonJS
+        run: npm run verify:dist
+
+      - name: Pack
+        run: npm pack
+
+      - name: Upload the package
+        uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: '*.tgz'
+          retention-days: 7
