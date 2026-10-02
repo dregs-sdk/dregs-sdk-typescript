@@ -38,7 +38,7 @@ export {
   Dregs,
   SECRET_KEY_ENV,
 } from './client.js';
-export type { DregsOptions, FetchLike, TrackOptions } from './client.js';
+export type { DregsOptions, FetchLike, TrackGroup, TrackOptions } from './client.js';
 
 export { Identities } from './resources.js';
 

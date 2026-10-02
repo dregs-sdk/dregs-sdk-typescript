@@ -39,6 +39,9 @@ export const BASE_URL_ENV = 'DREGS_BASE_URL';
 /** The `source` sent on events when the caller does not name one. */
 export const DEFAULT_SOURCE = 'node-sdk';
 
+/** The `type` sent on a group when the caller does not name one. */
+const DEFAULT_GROUP_TYPE = 'organization';
+
 /**
  * Statuses worth another attempt. 429 and 5xx are transient by definition; 408 shows up in front
  * of some proxies.
@@ -97,6 +100,23 @@ export interface DregsOptions {
   fetch?: FetchLike;
 }
 
+/** A group the user is acting in, such as their organization or team. */
+export interface TrackGroup {
+  /** Your own id for the group. A number is sent as a string. */
+  id: string | number;
+
+  /**
+   * Your own name for the kind of group, such as `"team"`. Defaults to `"organization"`.
+   *
+   * Dregs normalizes it to lower_snake_case, so `ParentCompany` and `parent-company` are the same
+   * type.
+   */
+  type?: string;
+
+  /** Attributes of the group, such as its name or plan. Dregs merges these into the group. */
+  data?: Readonly<Record<string, unknown>>;
+}
+
 /** The arguments to {@link Dregs.track} beyond the event type. */
 export interface TrackOptions {
   /**
@@ -119,6 +139,16 @@ export interface TrackOptions {
    * canonical fields under **Settings → Mappings**.
    */
   identityData?: Readonly<Record<string, unknown>>;
+
+  /**
+   * The groups the user is acting in, such as their organization or team, if your application
+   * has them.
+   *
+   * Each is an object with an `id` (your own), an optional `type` (your own name for the kind of
+   * group, defaulting to `"organization"`), and optional `data` that Dregs merges into the group.
+   * Dregs makes the identity a member of each. At most one group of each type.
+   */
+  groups?: readonly TrackGroup[];
 
   /**
    * Your own id for the event, which makes ingestion idempotent: reposting the same id returns
@@ -263,8 +293,8 @@ export class Dregs {
    * @throws {RateLimitError} The credential is ingesting too fast.
    * @throws {AuthenticationError} The secret key was not recognized.
    * @throws {BadRequestError} The event was malformed.
-   * @throws {TypeError} The event type, identity, or event id was unusable. These are thrown
-   *   before anything is sent.
+   * @throws {TypeError} The event type, identity, event id, or groups were unusable. These are
+   *   thrown before anything is sent.
    */
   async track(type: string, options: TrackOptions): Promise<TrackResult> {
     return parseTrackResult(await this.request('POST', '/events', this.trackBody(type, options)));
@@ -289,6 +319,7 @@ export class Dregs {
       );
     }
 
+    const groups = groupsBody(options.groups);
     const eventId = options.eventId ?? randomEventId();
 
     if (eventId.startsWith('dregs-')) {
@@ -306,6 +337,10 @@ export class Dregs {
       identity: { id: options.identity, data: { ...(options.identityData ?? {}) } },
       source: options.source ?? DEFAULT_SOURCE,
     };
+
+    if (groups.length > 0) {
+      body.groups = groups;
+    }
 
     if (options.timestamp !== undefined) {
       body.timestamp = toIsoUtc(options.timestamp);
@@ -403,6 +438,62 @@ export class Dregs {
 
     return Math.random() * Math.min(500 * 2 ** attempt, MAX_BACKOFF_MS);
   }
+}
+
+/**
+ * Builds the `groups` list of a track body, refusing malformed entries before any request.
+ *
+ * Each group needs an `id`. Its `type` defaults to `"organization"`, and Dregs normalizes it to
+ * lower_snake_case, so only one group of each type may go with an event.
+ */
+function groupsBody(groups: readonly TrackGroup[] | undefined): Record<string, unknown>[] {
+  if (groups === undefined || groups === null) {
+    return [];
+  }
+
+  if (!Array.isArray(groups)) {
+    throw new TypeError("groups is an array of groups, such as [{ type: 'team', id: 'team_42' }].");
+  }
+
+  const resolved: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const group of groups as unknown[]) {
+    if (!isRecord(group)) {
+      throw new TypeError(
+        'Each group must be an object with an id, and optionally a type and data.',
+      );
+    }
+
+    const groupId = group.id;
+
+    if ((typeof groupId !== 'string' && typeof groupId !== 'number') || String(groupId) === '') {
+      throw new TypeError('Each group needs an id.');
+    }
+
+    const groupType = group.type || DEFAULT_GROUP_TYPE;
+
+    if (typeof groupType !== 'string') {
+      throw new TypeError("A group's type must be a string, such as 'organization' or 'team'.");
+    }
+
+    if (seen.has(groupType.toLowerCase())) {
+      throw new TypeError(
+        `Only one group of each type can go with an event; '${groupType}' appears twice.`,
+      );
+    }
+
+    const data = group.data;
+
+    if (data !== undefined && data !== null && !isRecord(data)) {
+      throw new TypeError("A group's data must be an object, such as { name: 'Payments' }.");
+    }
+
+    seen.add(groupType.toLowerCase());
+    resolved.push({ type: groupType, id: String(groupId), data: { ...(data ?? {}) } });
+  }
+
+  return resolved;
 }
 
 /** Turns a response into parsed JSON, or throws the matching error. */

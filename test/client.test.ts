@@ -3,10 +3,29 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_BASE_URL, Dregs } from '../src/client.js';
+import type { TrackOptions } from '../src/client.js';
 
 import { BASE_URL, SECRET_KEY, json, makeClient, stubFetch } from './helpers.js';
 
 const ACCEPTED = json(200, { status: 'success', id: 'evt_1', fingerprint: null });
+
+/** Groups a caller might send by mistake, each with the part of the message that refuses it. */
+const MALFORMED_GROUPS: [unknown, RegExp][] = [
+  [{ type: 'team', id: 'team_42' }, /array of groups/],
+  [['team_42'], /must be an object/],
+  [[{ type: 'team' }], /needs an id/],
+  [[{ type: 'team', id: '' }], /needs an id/],
+  [[{ type: 7, id: 'team_42' }], /must be a string/],
+  [
+    [
+      { type: 'team', id: 'a' },
+      { type: 'Team', id: 'b' },
+    ],
+    /one group of each type/,
+  ],
+  [[{ id: 'a' }, { type: 'organization', id: 'b' }], /one group of each type/],
+  [[{ type: 'team', id: 'a', data: ['x'] }], /data must be an object/],
+];
 
 describe('construction', () => {
   const saved = { ...process.env };
@@ -210,6 +229,61 @@ describe('the track request', () => {
       makeClient(stub).track('user.signup', { identity: 'user_12345', eventId: 'x'.repeat(65) }),
     ).rejects.toThrow(/64 characters/);
   });
+
+  it('sends the groups', async () => {
+    const stub = stubFetch(ACCEPTED);
+
+    await makeClient(stub).track('user.login', {
+      identity: 'user_12345',
+      groups: [
+        { type: 'organization', id: 'org_678', data: { name: 'Acme Inc' } },
+        { type: 'team', id: 42 },
+      ],
+    });
+
+    expect(stub.lastBody().groups).toEqual([
+      { type: 'organization', id: 'org_678', data: { name: 'Acme Inc' } },
+      { type: 'team', id: '42', data: {} },
+    ]);
+  });
+
+  it('treats a group without a type as an organization', async () => {
+    const stub = stubFetch(ACCEPTED);
+
+    await makeClient(stub).track('user.login', {
+      identity: 'user_12345',
+      groups: [{ id: 'org_678' }],
+    });
+
+    expect(stub.lastBody().groups).toEqual([{ type: 'organization', id: 'org_678', data: {} }]);
+  });
+
+  it('omits the groups when there are none', async () => {
+    const stub = stubFetch(ACCEPTED);
+    const client = makeClient(stub);
+
+    await client.track('user.login', { identity: 'user_12345' });
+    await client.track('user.login', { identity: 'user_12345', groups: [] });
+
+    expect(stub.bodyAt(0)).not.toHaveProperty('groups');
+    expect(stub.bodyAt(1)).not.toHaveProperty('groups');
+  });
+
+  it.each(MALFORMED_GROUPS)(
+    'refuses malformed groups %j before any request',
+    async (groups, message) => {
+      const stub = stubFetch(ACCEPTED);
+
+      await expect(
+        makeClient(stub).track('user.login', {
+          identity: 'user_12345',
+          groups: groups as TrackOptions['groups'],
+        }),
+      ).rejects.toThrow(message);
+
+      expect(stub.callCount).toBe(0);
+    },
+  );
 });
 
 describe('the track response', () => {
