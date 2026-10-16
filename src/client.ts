@@ -17,8 +17,15 @@ import {
 } from './errors.js';
 import type { RawPayload, TrackResult } from './models.js';
 import { parseTrackResult } from './models.js';
-import type { RequestFn } from './resources.js';
-import { Identities } from './resources.js';
+import type { Query, RequestFn } from './resources.js';
+import {
+  DEFAULT_GROUP_TYPE,
+  Devices,
+  Escalations,
+  Events,
+  Groups,
+  Identities,
+} from './resources.js';
 import { VERSION } from './version.js';
 
 /** The API root used when neither an option nor `DREGS_BASE_URL` names one. */
@@ -38,9 +45,6 @@ export const BASE_URL_ENV = 'DREGS_BASE_URL';
 
 /** The `source` sent on events when the caller does not name one. */
 export const DEFAULT_SOURCE = 'node-sdk';
-
-/** The `type` sent on a group when the caller does not name one. */
-const DEFAULT_GROUP_TYPE = 'organization';
 
 /**
  * Statuses worth another attempt. 429 and 5xx are transient by definition; 408 shows up in front
@@ -190,8 +194,20 @@ export interface TrackOptions {
  * its configuration, and connection pooling belongs to the runtime's `fetch`.
  */
 export class Dregs {
-  /** Read identities, their scores, and their analysis. */
+  /** Read identities, their scores, and their analysis, and update them. */
   readonly identities: Identities;
+
+  /** Read and manage groups and their members. */
+  readonly groups: Groups;
+
+  /** Read the events Dregs has recorded. */
+  readonly events: Events;
+
+  /** Read devices, and disregard them. */
+  readonly devices: Devices;
+
+  /** Read and work escalations. */
+  readonly escalations: Escalations;
 
   readonly #secretKey: string;
   readonly #baseUrl: string;
@@ -254,9 +270,14 @@ export class Dregs {
     this.#maxRetries = maxRetries;
     this.#fetch = resolvedFetch;
 
-    const request: RequestFn = (method, path, body) => this.request(method, path, body);
+    const request: RequestFn = (method, path, body, query) =>
+      this.request(method, path, body, query);
 
     this.identities = new Identities(request);
+    this.groups = new Groups(request);
+    this.events = new Events(request);
+    this.devices = new Devices(request);
+    this.escalations = new Escalations(request);
   }
 
   /** The API root every request is built against, with any trailing slash removed. */
@@ -355,8 +376,13 @@ export class Dregs {
    * The retry loop reuses the request body verbatim, which is what keeps a retried event
    * idempotent: the generated id is built once, before the first attempt.
    */
-  private async request(method: string, path: string, body?: unknown): Promise<unknown> {
-    const url = `${this.#baseUrl}/${path.replace(/^\/+/, '')}`;
+  private async request(
+    method: string,
+    path: string,
+    body?: unknown,
+    query?: Query,
+  ): Promise<unknown> {
+    const url = `${this.#baseUrl}/${path.replace(/^\/+/, '')}${queryString(query)}`;
     const init = this.requestInit(method, body);
 
     for (let attempt = 0; ; attempt += 1) {
@@ -528,7 +554,7 @@ function processResponse(response: Response, text: string): unknown {
 }
 
 function apiError(response: Response, payload: unknown): DregsAPIError {
-  const message = messageFrom(payload) ?? response.statusText ?? 'Request failed';
+  const message = messageFrom(payload) ?? reasonPhrase(response);
   const id = requestId(response);
 
   if (response.status === 429) {
@@ -558,6 +584,71 @@ function messageFrom(payload: unknown): string | null {
   }
 
   return null;
+}
+
+/**
+ * The reason phrase for the response's status, such as "Not Found".
+ *
+ * `statusText` is empty over HTTP/2, which has no reason phrases, so the standard phrase for the
+ * status stands in for it there.
+ */
+function reasonPhrase(response: Response): string {
+  return response.statusText || REASON_PHRASES[response.status] || `HTTP ${response.status}`;
+}
+
+/** The standard reason phrases for the statuses an API error is likely to carry. */
+const REASON_PHRASES: Readonly<Record<number, string>> = {
+  400: 'Bad Request',
+  401: 'Unauthorized',
+  402: 'Payment Required',
+  403: 'Forbidden',
+  404: 'Not Found',
+  405: 'Method Not Allowed',
+  406: 'Not Acceptable',
+  408: 'Request Timeout',
+  409: 'Conflict',
+  410: 'Gone',
+  411: 'Length Required',
+  412: 'Precondition Failed',
+  413: 'Content Too Large',
+  414: 'URI Too Long',
+  415: 'Unsupported Media Type',
+  418: "I'm a Teapot",
+  422: 'Unprocessable Content',
+  425: 'Too Early',
+  428: 'Precondition Required',
+  429: 'Too Many Requests',
+  431: 'Request Header Fields Too Large',
+  451: 'Unavailable For Legal Reasons',
+  500: 'Internal Server Error',
+  501: 'Not Implemented',
+  502: 'Bad Gateway',
+  503: 'Service Unavailable',
+  504: 'Gateway Timeout',
+  505: 'HTTP Version Not Supported',
+};
+
+/**
+ * Builds the query string for a request, leaving off unset parameters.
+ *
+ * Booleans are spelled `true` and `false`, which is how the API's binder reads them.
+ */
+function queryString(query: Query | undefined): string {
+  if (!query) {
+    return '';
+  }
+
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null) {
+      params.append(key, String(value));
+    }
+  }
+
+  const encoded = params.toString();
+
+  return encoded ? `?${encoded}` : '';
 }
 
 function requestId(response: Response): string | null {

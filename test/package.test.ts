@@ -41,6 +41,12 @@ describe('the package', () => {
     }
   });
 
+  it('exports every namespace class from the root', () => {
+    for (const name of ['Identities', 'Groups', 'Events', 'Devices', 'Escalations']) {
+      expect(root, `${name} should be exported from the root`).toHaveProperty(name);
+    }
+  });
+
   it('re-exports the webhook helpers from the root', () => {
     expect(root.verifyWebhook).toBe(webhooks.verifyWebhook);
     expect(root.verifyWebhookSignature).toBe(webhooks.verifyWebhookSignature);

@@ -108,6 +108,35 @@ describe('status mapping', () => {
     expect(error).toBeInstanceOf(ServerError);
     expect(error.body).toBeNull();
   });
+
+  it.each([
+    [404, 'Not Found'],
+    [500, 'Internal Server Error'],
+    [502, 'Bad Gateway'],
+  ])('falls back to the reason phrase for a %i with no message', async (status, phrase) => {
+    // A stubbed Response, like one over HTTP/2, has an empty statusText, so this is the table.
+    const client = makeClient(stubFetch(empty(status)));
+
+    const error = await rejection<DregsAPIError>(client.identities.get('user_12345'));
+
+    expect(error.message).toBe(phrase);
+  });
+
+  it('falls back to the reason phrase when the body has no message string', async () => {
+    const client = makeClient(stubFetch(json(404, { status: 404 })));
+
+    const error = await rejection<NotFoundError>(client.identities.get('user_12345'));
+
+    expect(error.message).toBe('Not Found');
+  });
+
+  it('names the status when there is no reason phrase to fall back to', async () => {
+    const client = makeClient(stubFetch(empty(499)));
+
+    const error = await rejection<DregsAPIError>(client.identities.get('user_12345'));
+
+    expect(error.message).toBe('HTTP 499');
+  });
 });
 
 describe('rate limits and quotas', () => {

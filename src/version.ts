@@ -5,4 +5,4 @@
  * both ESM and CommonJS and neither can reach its own manifest portably. A test asserts this
  * stays in step with `package.json`, so the two cannot drift.
  */
-export const VERSION = '0.1.0';
+export const VERSION = '1.0.0';

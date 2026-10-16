@@ -163,6 +163,108 @@ await client.identities.analyze('user_12345');
 This queues the work and resolves; it does not wait for the cycle to finish. Dregs rescores on its own
 as events arrive, so you rarely need this outside of a support or backfill flow.
 
+### History, links, and past cycles
+
+```ts
+for (const entry of await client.identities.history('user_12345', { limit: 10 })) {
+  console.log(entry.cycleId, entry.finishedAt, entry.humanity, entry.behavior);
+}
+
+const older = await client.identities.analysis('user_12345', 2000871); // a past cycle, by its cycleId
+
+for (const link of await client.identities.links('user_12345')) {
+  console.log(link.identityId, link.type, link.explanation); // e.g. "user_999", "SAME_DEVICE"
+}
+```
+
+### Disregarding an identity
+
+Leave your own staff and test accounts out of scoring and escalations:
+
+```ts
+await client.identities.update('qa_bot_7', { disregarded: true });
+```
+
+### Asking for a review
+
+When a score looks wrong, Dregs's AI reviewer will look over the analysis and say why. The review runs
+in the background, so read it back later with `reviews()`.
+
+```ts
+const review = await client.identities.review('user_12345', {
+  feedback: 'This is a long-standing customer.',
+});
+
+review.status; // "PENDING", then "FINISHED"
+```
+
+## Listing and paging
+
+Every namespace with a `list()` returns one `Page` at a time, numbered from 0, and a `listAll()` that
+walks every page for you with `for await`:
+
+```ts
+const page = await client.identities.list({ term: 'example.com', pageSize: 50 });
+
+page.items; // the identities on this page; the page itself is iterable too
+page.totalElements; // how many match in all
+page.hasNext; // whether another page follows
+
+for await (const identity of client.identities.listAll({
+  group: 'org_678',
+  sort: 'humanityScore',
+  order: 'asc',
+})) {
+  // ...
+}
+```
+
+Filters you leave out are not sent. A page holds at most 100 items.
+
+## Groups
+
+`track()` records groups and memberships as events arrive. The `groups` namespace reads them back, and
+keeps Dregs in step when something changes outside an event, such as a user leaving a team:
+
+```ts
+await client.groups.create('org_678', { attributes: { name: 'Acme Inc', plan: 'enterprise' } });
+
+const group = await client.groups.get('organization', 'org_678');
+group.identityCount; // 12
+
+await client.groups.update('organization', 'org_678', { plan: 'business' });
+
+await client.groups.addMember('team', 'team_42', 'user_12345');
+await client.groups.removeMember('team', 'team_42', 'user_12345');
+
+for await (const team of client.groups.listAll({ groupType: 'team', identity: 'user_12345' })) {
+  console.log(team.id, team.displayName);
+}
+```
+
+`create()` merges into the group when one with the same type and id already exists, so it is safe to call
+on every sync. The type defaults to `"organization"`; pass `{ groupType: 'team' }` for another.
+
+## Events, devices, and escalations
+
+```ts
+for await (const event of client.events.listAll({ identity: 'user_12345' })) {
+  console.log(event.timestamp, event.name, event.canonicalType);
+}
+
+await client.devices.update('a1b2c3d4e5', { disregarded: true }); // e.g. a shared office machine
+
+for await (const escalation of client.escalations.listAll({
+  status: 'open',
+  severity: 'critical',
+})) {
+  await notifyOnCall(escalation.identity?.id);
+  await client.escalations.update(escalation.id!, { status: 'acknowledged' });
+}
+
+await client.escalations.summary(); // { open: 3, acknowledged: 1, closed: 20, ... }
+```
+
 ## Errors
 
 ```ts
@@ -196,11 +298,13 @@ try {
 | `DregsConnectionError`  | the request never reached Dregs                    |
 
 All of them derive from `DregsError`. Those that reached the API also carry `statusCode`, `body`, and
-`requestId`; `error.message` is the message the API sent, and `error.toString()` prefixes it with the
+`requestId`; `error.message` is the message the API sent (or the status's reason phrase, such as
+"Not Found", when it sent none), and `error.toString()` prefixes it with the
 status and the request id, which is the form worth putting in a log line.
 
 Arguments the SDK can reject without asking Dregs — a missing identity, an event id over 64 characters,
-a `pk_` key — throw a plain `TypeError` before anything is sent.
+a `pk_` key, an empty id in a path, a negative page, an unknown escalation status — throw a plain
+`TypeError` before anything is sent.
 
 ### Retries
 
@@ -277,7 +381,18 @@ one also keeps the body it was built from in `raw`, so a field Dregs adds after 
 without waiting for an SDK upgrade.
 
 ```ts
-import type { Analysis, Category, Identity, Observation, Score, TrackResult } from '@dregs/sdk';
+import type {
+  Analysis,
+  Category,
+  Escalation,
+  Event,
+  Group,
+  Identity,
+  Observation,
+  Page,
+  Score,
+  TrackResult,
+} from '@dregs/sdk';
 ```
 
 ## Contributing
