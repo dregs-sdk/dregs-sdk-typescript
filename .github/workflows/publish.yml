@@ -65,10 +65,12 @@ jobs:
         run: npm run verify:dist
 
       # npm does not create --pack-destination, it only writes into it, so the directory has to
-      # exist first or the pack fails with ENOENT on the tarball it was about to write.
+      # exist first or the pack fails with ENOENT on the tarball it was about to write. It starts
+      # empty so nothing but this build's tarball can be uploaded alongside it.
       - name: Pack
         run: |
-          mkdir -p dist-package
+          rm -rf dist-package
+          mkdir dist-package
           npm pack --pack-destination dist-package
 
       - name: Upload the package
@@ -111,6 +113,9 @@ jobs:
       # EALLOWGIT rather than anything that points at the real problem.
       - name: Publish
         run: |
-          tarball=$(ls dist-package/*.tgz)
-          test -f "$tarball"
-          npm publish "./$tarball" --provenance --access public
+          tarballs=(dist-package/*.tgz)
+          if [ "${#tarballs[@]}" -ne 1 ] || [ ! -f "${tarballs[0]}" ]; then
+            echo "::error::Expected exactly one tarball in dist-package, found: ${tarballs[*]}"
+            exit 1
+          fi
+          npm publish "./${tarballs[0]}" --provenance --access public
