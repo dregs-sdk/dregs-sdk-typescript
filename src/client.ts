@@ -17,8 +17,15 @@ import {
 } from './errors.js';
 import type { RawPayload, TrackResult } from './models.js';
 import { parseTrackResult } from './models.js';
-import type { RequestFn } from './resources.js';
-import { Identities } from './resources.js';
+import type { Query, RequestFn } from './resources.js';
+import {
+  DEFAULT_GROUP_TYPE,
+  Devices,
+  Escalations,
+  Events,
+  Groups,
+  Identities,
+} from './resources.js';
 import { VERSION } from './version.js';
 
 /** The API root used when neither an option nor `DREGS_BASE_URL` names one. */
@@ -97,6 +104,23 @@ export interface DregsOptions {
   fetch?: FetchLike;
 }
 
+/** A group the user is acting in, such as their organization or team. */
+export interface TrackGroup {
+  /** Your own id for the group. A number is sent as a string. */
+  id: string | number;
+
+  /**
+   * Your own name for the kind of group, such as `"team"`. Defaults to `"organization"`.
+   *
+   * Dregs normalizes it to lower_snake_case, so `ParentCompany` and `parent-company` are the same
+   * type.
+   */
+  type?: string;
+
+  /** Attributes of the group, such as its name or plan. Dregs merges these into the group. */
+  data?: Readonly<Record<string, unknown>>;
+}
+
 /** The arguments to {@link Dregs.track} beyond the event type. */
 export interface TrackOptions {
   /**
@@ -119,6 +143,16 @@ export interface TrackOptions {
    * canonical fields under **Settings → Mappings**.
    */
   identityData?: Readonly<Record<string, unknown>>;
+
+  /**
+   * The groups the user is acting in, such as their organization or team, if your application
+   * has them.
+   *
+   * Each is an object with an `id` (your own), an optional `type` (your own name for the kind of
+   * group, defaulting to `"organization"`), and optional `data` that Dregs merges into the group.
+   * Dregs makes the identity a member of each. At most one group of each type.
+   */
+  groups?: readonly TrackGroup[];
 
   /**
    * Your own id for the event, which makes ingestion idempotent: reposting the same id returns
@@ -160,8 +194,20 @@ export interface TrackOptions {
  * its configuration, and connection pooling belongs to the runtime's `fetch`.
  */
 export class Dregs {
-  /** Read identities, their scores, and their analysis. */
+  /** Read identities, their scores, and their analysis, and update them. */
   readonly identities: Identities;
+
+  /** Read and manage groups and their members. */
+  readonly groups: Groups;
+
+  /** Read the events Dregs has recorded. */
+  readonly events: Events;
+
+  /** Read devices, and disregard them. */
+  readonly devices: Devices;
+
+  /** Read and work escalations. */
+  readonly escalations: Escalations;
 
   readonly #secretKey: string;
   readonly #baseUrl: string;
@@ -224,9 +270,14 @@ export class Dregs {
     this.#maxRetries = maxRetries;
     this.#fetch = resolvedFetch;
 
-    const request: RequestFn = (method, path, body) => this.request(method, path, body);
+    const request: RequestFn = (method, path, body, query) =>
+      this.request(method, path, body, query);
 
     this.identities = new Identities(request);
+    this.groups = new Groups(request);
+    this.events = new Events(request);
+    this.devices = new Devices(request);
+    this.escalations = new Escalations(request);
   }
 
   /** The API root every request is built against, with any trailing slash removed. */
@@ -263,8 +314,8 @@ export class Dregs {
    * @throws {RateLimitError} The credential is ingesting too fast.
    * @throws {AuthenticationError} The secret key was not recognized.
    * @throws {BadRequestError} The event was malformed.
-   * @throws {TypeError} The event type, identity, or event id was unusable. These are thrown
-   *   before anything is sent.
+   * @throws {TypeError} The event type, identity, event id, or groups were unusable. These are
+   *   thrown before anything is sent.
    */
   async track(type: string, options: TrackOptions): Promise<TrackResult> {
     return parseTrackResult(await this.request('POST', '/events', this.trackBody(type, options)));
@@ -289,6 +340,7 @@ export class Dregs {
       );
     }
 
+    const groups = groupsBody(options.groups);
     const eventId = options.eventId ?? randomEventId();
 
     if (eventId.startsWith('dregs-')) {
@@ -307,6 +359,10 @@ export class Dregs {
       source: options.source ?? DEFAULT_SOURCE,
     };
 
+    if (groups.length > 0) {
+      body.groups = groups;
+    }
+
     if (options.timestamp !== undefined) {
       body.timestamp = toIsoUtc(options.timestamp);
     }
@@ -320,8 +376,13 @@ export class Dregs {
    * The retry loop reuses the request body verbatim, which is what keeps a retried event
    * idempotent: the generated id is built once, before the first attempt.
    */
-  private async request(method: string, path: string, body?: unknown): Promise<unknown> {
-    const url = `${this.#baseUrl}/${path.replace(/^\/+/, '')}`;
+  private async request(
+    method: string,
+    path: string,
+    body?: unknown,
+    query?: Query,
+  ): Promise<unknown> {
+    const url = `${this.#baseUrl}/${path.replace(/^\/+/, '')}${queryString(query)}`;
     const init = this.requestInit(method, body);
 
     for (let attempt = 0; ; attempt += 1) {
@@ -405,6 +466,62 @@ export class Dregs {
   }
 }
 
+/**
+ * Builds the `groups` list of a track body, refusing malformed entries before any request.
+ *
+ * Each group needs an `id`. Its `type` defaults to `"organization"`, and Dregs normalizes it to
+ * lower_snake_case, so only one group of each type may go with an event.
+ */
+function groupsBody(groups: readonly TrackGroup[] | undefined): Record<string, unknown>[] {
+  if (groups === undefined || groups === null) {
+    return [];
+  }
+
+  if (!Array.isArray(groups)) {
+    throw new TypeError("groups is an array of groups, such as [{ type: 'team', id: 'team_42' }].");
+  }
+
+  const resolved: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const group of groups as unknown[]) {
+    if (!isRecord(group)) {
+      throw new TypeError(
+        'Each group must be an object with an id, and optionally a type and data.',
+      );
+    }
+
+    const groupId = group.id;
+
+    if ((typeof groupId !== 'string' && typeof groupId !== 'number') || String(groupId) === '') {
+      throw new TypeError('Each group needs an id.');
+    }
+
+    const groupType = group.type || DEFAULT_GROUP_TYPE;
+
+    if (typeof groupType !== 'string') {
+      throw new TypeError("A group's type must be a string, such as 'organization' or 'team'.");
+    }
+
+    if (seen.has(groupType.toLowerCase())) {
+      throw new TypeError(
+        `Only one group of each type can go with an event; '${groupType}' appears twice.`,
+      );
+    }
+
+    const data = group.data;
+
+    if (data !== undefined && data !== null && !isRecord(data)) {
+      throw new TypeError("A group's data must be an object, such as { name: 'Payments' }.");
+    }
+
+    seen.add(groupType.toLowerCase());
+    resolved.push({ type: groupType, id: String(groupId), data: { ...(data ?? {}) } });
+  }
+
+  return resolved;
+}
+
 /** Turns a response into parsed JSON, or throws the matching error. */
 function processResponse(response: Response, text: string): unknown {
   const payload = parseJson(text);
@@ -437,7 +554,7 @@ function processResponse(response: Response, text: string): unknown {
 }
 
 function apiError(response: Response, payload: unknown): DregsAPIError {
-  const message = messageFrom(payload) ?? response.statusText ?? 'Request failed';
+  const message = messageFrom(payload) ?? reasonPhrase(response);
   const id = requestId(response);
 
   if (response.status === 429) {
@@ -467,6 +584,71 @@ function messageFrom(payload: unknown): string | null {
   }
 
   return null;
+}
+
+/**
+ * The reason phrase for the response's status, such as "Not Found".
+ *
+ * `statusText` is empty over HTTP/2, which has no reason phrases, so the standard phrase for the
+ * status stands in for it there.
+ */
+function reasonPhrase(response: Response): string {
+  return response.statusText || REASON_PHRASES[response.status] || `HTTP ${response.status}`;
+}
+
+/** The standard reason phrases for the statuses an API error is likely to carry. */
+const REASON_PHRASES: Readonly<Record<number, string>> = {
+  400: 'Bad Request',
+  401: 'Unauthorized',
+  402: 'Payment Required',
+  403: 'Forbidden',
+  404: 'Not Found',
+  405: 'Method Not Allowed',
+  406: 'Not Acceptable',
+  408: 'Request Timeout',
+  409: 'Conflict',
+  410: 'Gone',
+  411: 'Length Required',
+  412: 'Precondition Failed',
+  413: 'Content Too Large',
+  414: 'URI Too Long',
+  415: 'Unsupported Media Type',
+  418: "I'm a Teapot",
+  422: 'Unprocessable Content',
+  425: 'Too Early',
+  428: 'Precondition Required',
+  429: 'Too Many Requests',
+  431: 'Request Header Fields Too Large',
+  451: 'Unavailable For Legal Reasons',
+  500: 'Internal Server Error',
+  501: 'Not Implemented',
+  502: 'Bad Gateway',
+  503: 'Service Unavailable',
+  504: 'Gateway Timeout',
+  505: 'HTTP Version Not Supported',
+};
+
+/**
+ * Builds the query string for a request, leaving off unset parameters.
+ *
+ * Booleans are spelled `true` and `false`, which is how the API's binder reads them.
+ */
+function queryString(query: Query | undefined): string {
+  if (!query) {
+    return '';
+  }
+
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null) {
+      params.append(key, String(value));
+    }
+  }
+
+  const encoded = params.toString();
+
+  return encoded ? `?${encoded}` : '';
 }
 
 function requestId(response: Response): string | null {

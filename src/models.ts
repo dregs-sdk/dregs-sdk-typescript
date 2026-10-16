@@ -292,6 +292,341 @@ export interface Analysis {
   readonly raw: RawPayload;
 }
 
+/**
+ * One page of a list call.
+ *
+ * Pages are numbered from 0. A page is iterable, so `for (const item of page)` and `[...page]`
+ * work as well as `page.items`. To walk every page, use the namespace's `listAll()` rather than
+ * looping on `pageNumber` yourself.
+ */
+export interface Page<T> extends Iterable<T> {
+  /** The items on this page. */
+  readonly items: readonly T[];
+
+  /** This page's number, counting from 0. */
+  readonly pageNumber: number;
+
+  /** The most items a page holds. */
+  readonly pageSize: number;
+
+  /** How many pages there are in all. */
+  readonly totalPages: number;
+
+  /** How many items there are across every page. */
+  readonly totalElements: number;
+
+  /** Whether this is the first page. */
+  readonly first: boolean;
+
+  /** Whether this is the last page. */
+  readonly last: boolean;
+
+  /** Whether another page follows this one. */
+  readonly hasNext: boolean;
+
+  /** The response body this page was built from. */
+  readonly raw: RawPayload;
+}
+
+/** A pointer to another resource: its id, a label for display, and its API path. */
+export interface Reference {
+  /** The resource's id. */
+  readonly id: string | null;
+
+  /** A label for display, such as an identity's name. */
+  readonly label: string | null;
+
+  /** The resource's path in the API. */
+  readonly path: string | null;
+
+  /** The response fragment this reference was built from. */
+  readonly raw: RawPayload;
+}
+
+/** A pointer to a group, as it appears on an event. */
+export interface GroupReference {
+  /** The kind of group, such as `"organization"` or `"team"`. */
+  readonly type: string | null;
+
+  /** Your own id for the group. */
+  readonly id: string | null;
+
+  /** A label for display, such as the group's name. */
+  readonly label: string | null;
+
+  /** The group's path in the API. */
+  readonly path: string | null;
+
+  /** The response fragment this reference was built from. */
+  readonly raw: RawPayload;
+}
+
+/**
+ * An organization, team, workspace, or whatever your application groups users into.
+ *
+ * A group is identified by its `type` and `id` together, both your own. Dregs normalizes the type
+ * to lower_snake_case.
+ */
+export interface Group {
+  /** The kind of group, such as `"organization"` or `"team"`. */
+  readonly type: string | null;
+
+  /** Your own id for the group. */
+  readonly id: string | null;
+
+  /** A name for display, taken from the group's attributes. */
+  readonly displayName: string | null;
+
+  /** How many identities are members. */
+  readonly identityCount: number | null;
+
+  /** When Dregs first saw this group. */
+  readonly createdAt: Date | null;
+
+  /** When the group record last changed. */
+  readonly updatedAt: Date | null;
+
+  /** When the most recent event sent with this group arrived. */
+  readonly lastTrackedAt: Date | null;
+
+  /** The group's attributes. Empty on the groups of a list call, which leaves them out. */
+  readonly data: RawPayload;
+
+  /** The response body this group was built from. */
+  readonly raw: RawPayload;
+}
+
+/** An event Dregs recorded. */
+export interface Event {
+  /** The event's id, either the one you sent or one Dregs generated. */
+  readonly id: string | null;
+
+  /** When the event happened. */
+  readonly timestamp: Date | null;
+
+  /** The identity the event belongs to, if any. */
+  readonly identity: Reference | null;
+
+  /** The groups the event was sent with. */
+  readonly groups: readonly GroupReference[];
+
+  /** The device fingerprint, for events that carried a device signature. */
+  readonly fingerprint: string | null;
+
+  /** The browser session, for events from the tracker. */
+  readonly session: string | null;
+
+  /** The address the event came from. */
+  readonly ip: string | null;
+
+  /** The page URL, for events from the tracker. */
+  readonly url: string | null;
+
+  /** Where the event came from, such as `"node-sdk"`. */
+  readonly source: string | null;
+
+  /** Your name for the event, such as `"user.signup"`. */
+  readonly name: string | null;
+
+  /** The Dregs event type your name is mapped to, if it is mapped. */
+  readonly canonicalType: string | null;
+
+  /** The event's attributes, with sensitive values redacted. */
+  readonly data: RawPayload;
+
+  /** The response body this event was built from. */
+  readonly raw: RawPayload;
+}
+
+/** A browser or device Dregs has seen, identified by its fingerprint. */
+export interface Device {
+  /** The device's fingerprint. */
+  readonly fingerprint: string | null;
+
+  /** The address the device was last seen from. */
+  readonly ip: string | null;
+
+  /** The autonomous system the address belongs to. */
+  readonly asn: string | null;
+
+  /** The name of that autonomous system, such as a hosting provider or ISP. */
+  readonly asnLabel: string | null;
+
+  /** The device's user agent. */
+  readonly userAgent: string | null;
+
+  /** Where the address places the device, as resolved by geolocation. */
+  readonly city: string | null;
+
+  /** The region, such as a state or province. */
+  readonly region: string | null;
+
+  /** The country's name. */
+  readonly country: string | null;
+
+  /** The country's ISO 3166-1 alpha-2 code, such as `"US"`. */
+  readonly countryCode: string | null;
+
+  /** The IANA time zone, such as `"America/New_York"`. */
+  readonly timezone: string | null;
+
+  readonly latitude: number | null;
+  readonly longitude: number | null;
+
+  /** Whether the device is disregarded, so it no longer links the identities seen on it. */
+  readonly disregarded: boolean;
+
+  /** When Dregs first saw this device. */
+  readonly firstSeenAt: Date | null;
+
+  /** When Dregs last saw this device. */
+  readonly lastSeenAt: Date | null;
+
+  /** The response body this device was built from. */
+  readonly raw: RawPayload;
+}
+
+/** Another identity Dregs believes is connected to this one, such as by a shared device. */
+export interface LinkedIdentity {
+  /** The linked identity's id. */
+  readonly identityId: string | null;
+
+  /** The linked identity's display name. */
+  readonly displayName: string | null;
+
+  /** How they are linked, such as `"SAME_DEVICE"` or `"SHARED_IP"`. */
+  readonly type: string | null;
+
+  /** How strongly they are linked, from 0.0 to 1.0. */
+  readonly value: number | null;
+
+  /** How sure Dregs is of the link, from 0.0 to 1.0. */
+  readonly confidence: number | null;
+
+  /** A sentence describing the link. */
+  readonly explanation: string | null;
+
+  /** The details behind the link. */
+  readonly metadata: RawPayload;
+
+  /** When Dregs found the link. */
+  readonly createdAt: Date | null;
+
+  /** The response fragment this link was built from. */
+  readonly raw: RawPayload;
+}
+
+/** The scores one past analysis cycle produced. */
+export interface ScoreHistoryEntry {
+  /** The cycle's id, which `identities.analysis()` accepts to fetch that cycle's observations. */
+  readonly cycleId: number | null;
+
+  /** The cycle's humanity score, 0 to 100, or `null` when the category was unscored. */
+  readonly humanity: number | null;
+
+  /** The cycle's authenticity score, 0 to 100, or `null` when the category was unscored. */
+  readonly authenticity: number | null;
+
+  /** The cycle's uniqueness score, 0 to 100, or `null` when the category was unscored. */
+  readonly uniqueness: number | null;
+
+  /** The cycle's behavior score, 0 to 100, or `null` when the category was unscored. */
+  readonly behavior: number | null;
+
+  /** How many events the cycle considered. */
+  readonly eventCount: number | null;
+
+  /** How many devices the cycle considered. */
+  readonly deviceCount: number | null;
+
+  /** When the cycle finished. */
+  readonly finishedAt: Date | null;
+
+  /** The response fragment this entry was built from. */
+  readonly raw: RawPayload;
+}
+
+/** A review of an identity's analysis, written by Dregs's AI reviewer. */
+export interface IdentityReview {
+  /** The review's id. */
+  readonly id: number | null;
+
+  /** The identity reviewed. */
+  readonly identityId: string | null;
+
+  /** `"PENDING"` until the review has run, then `"FINISHED"` or `"FAILED"`. */
+  readonly status: string | null;
+
+  /** The note you sent with the request, if any. */
+  readonly feedback: string | null;
+
+  /** The reviewer's findings, once it has run. */
+  readonly summary: string | null;
+
+  /** Why the review failed, when it did. */
+  readonly errorMessage: string | null;
+
+  /** When the review was requested. */
+  readonly createdAt: Date | null;
+
+  /** When the review finished. */
+  readonly completedAt: Date | null;
+
+  /** The response body this review was built from. */
+  readonly raw: RawPayload;
+}
+
+/** An escalation an escalation rule opened against an identity. */
+export interface Escalation {
+  /** The escalation's id. */
+  readonly id: number | null;
+
+  /** `"OPEN"`, `"ACKNOWLEDGED"`, or `"CLOSED"`. */
+  readonly status: string | null;
+
+  /** `"INFO"`, `"WARNING"`, or `"CRITICAL"`. */
+  readonly severity: string | null;
+
+  /** The identity the escalation is about. */
+  readonly identity: Reference | null;
+
+  /** The escalation rule that opened it. */
+  readonly rule: Reference | null;
+
+  /** The identity's scores when the escalation opened, by category name. */
+  readonly scores: RawPayload;
+
+  /** When the escalation opened. */
+  readonly openedAt: Date | null;
+
+  /** When the escalation was acknowledged, if it has been. */
+  readonly acknowledgedAt: Date | null;
+
+  /** When the escalation was closed, if it has been. */
+  readonly closedAt: Date | null;
+
+  /** When the escalation record was created. */
+  readonly createdAt: Date | null;
+
+  /** The response body this escalation was built from. */
+  readonly raw: RawPayload;
+}
+
+/** How many escalations are in each status. */
+export interface EscalationSummary {
+  /** How many escalations are open. */
+  readonly open: number;
+
+  /** How many escalations are acknowledged but not closed. */
+  readonly acknowledged: number;
+
+  /** How many escalations are closed. */
+  readonly closed: number;
+
+  /** The response body this summary was built from. */
+  readonly raw: RawPayload;
+}
+
 function asPayload(value: unknown): RawPayload {
   return isPayload(value) ? value : {};
 }
@@ -450,4 +785,200 @@ export function parseAnalysis(payload: unknown): Analysis {
     finishedAt: asDate(body.finishedAt),
     raw: body,
   };
+}
+
+/** Builds a {@link Page}, parsing each item with `parse`. @internal */
+export function parsePage<T>(payload: unknown, parse: (item: RawPayload) => T): Page<T> {
+  const body = asPayload(payload);
+  const items = asArray(body.content).map(parse);
+  const last = body.last !== false;
+
+  return {
+    items,
+    pageNumber: asNumber(body.pageNumber) ?? 0,
+    pageSize: asNumber(body.pageSize) ?? 0,
+    totalPages: asNumber(body.totalPages) ?? 0,
+    totalElements: asNumber(body.totalElements) ?? 0,
+    first: body.first !== false,
+    last,
+    hasNext: !last && items.length > 0,
+    raw: body,
+    [Symbol.iterator]: () => items[Symbol.iterator](),
+  };
+}
+
+/** Builds a {@link Reference}, or `null` when there is nothing to build one from. @internal */
+export function parseReference(payload: unknown): Reference | null {
+  if (!isPayload(payload)) {
+    return null;
+  }
+
+  return {
+    id: asString(payload.id),
+    label: asString(payload.label),
+    path: asString(payload.path),
+    raw: payload,
+  };
+}
+
+/** Builds a {@link GroupReference}. @internal */
+export function parseGroupReference(payload: unknown): GroupReference {
+  const body = asPayload(payload);
+
+  return {
+    type: asString(body.type),
+    id: asString(body.id),
+    label: asString(body.label),
+    path: asString(body.path),
+    raw: body,
+  };
+}
+
+/** Builds a {@link Group}. @internal */
+export function parseGroup(payload: unknown): Group {
+  const body = asPayload(payload);
+
+  return {
+    type: asString(body.type),
+    id: asString(body.id),
+    displayName: asString(body.displayName),
+    identityCount: asNumber(body.identityCount),
+    createdAt: asDate(body.createdAt),
+    updatedAt: asDate(body.updatedAt),
+    lastTrackedAt: asDate(body.lastTrackedAt),
+    data: asPayload(body.data),
+    raw: body,
+  };
+}
+
+/** Builds an {@link Event}. @internal */
+export function parseEvent(payload: unknown): Event {
+  const body = asPayload(payload);
+
+  return {
+    id: asString(body.id),
+    timestamp: asDate(body.timestamp),
+    identity: parseReference(body.identity),
+    groups: asArray(body.groups).map(parseGroupReference),
+    fingerprint: asString(body.fingerprint),
+    session: asString(body.session),
+    ip: asString(body.ip),
+    url: asString(body.url),
+    source: asString(body.eventSource),
+    name: asString(body.eventName),
+    canonicalType: asString(body.canonicalType),
+    data: asPayload(body.eventData),
+    raw: body,
+  };
+}
+
+/** Builds a {@link Device}. @internal */
+export function parseDevice(payload: unknown): Device {
+  const body = asPayload(payload);
+
+  return {
+    fingerprint: asString(body.fingerprint),
+    ip: asString(body.ip),
+    asn: asString(body.asn),
+    asnLabel: asString(body.asnLabel),
+    userAgent: asString(body.userAgent),
+    city: asString(body.city),
+    region: asString(body.region),
+    country: asString(body.country),
+    countryCode: asString(body.countryCode),
+    timezone: asString(body.timezone),
+    latitude: asNumber(body.latitude),
+    longitude: asNumber(body.longitude),
+    disregarded: body.disregarded === true,
+    firstSeenAt: asDate(body.firstSeenAt),
+    lastSeenAt: asDate(body.lastSeenAt),
+    raw: body,
+  };
+}
+
+/** Builds a {@link LinkedIdentity}. @internal */
+export function parseLinkedIdentity(payload: unknown): LinkedIdentity {
+  const body = asPayload(payload);
+
+  return {
+    identityId: asString(body.targetIdentityId),
+    displayName: asString(body.targetDisplayName),
+    type: asString(body.type),
+    value: asNumber(body.value),
+    confidence: asNumber(body.confidence),
+    explanation: asString(body.explanation),
+    metadata: asPayload(body.metadata),
+    createdAt: asDate(body.createdAt),
+    raw: body,
+  };
+}
+
+/** Builds a {@link ScoreHistoryEntry}. @internal */
+export function parseScoreHistoryEntry(payload: unknown): ScoreHistoryEntry {
+  const body = asPayload(payload);
+
+  return {
+    cycleId: asNumber(body.id),
+    humanity: asNumber(body.humanityScore),
+    authenticity: asNumber(body.authenticityScore),
+    uniqueness: asNumber(body.uniquenessScore),
+    behavior: asNumber(body.behaviorScore),
+    eventCount: asNumber(body.eventCount),
+    deviceCount: asNumber(body.deviceCount),
+    finishedAt: asDate(body.finishedAt),
+    raw: body,
+  };
+}
+
+/** Builds an {@link IdentityReview}. @internal */
+export function parseIdentityReview(payload: unknown): IdentityReview {
+  const body = asPayload(payload);
+
+  return {
+    id: asNumber(body.id),
+    identityId: asString(body.identityId),
+    status: asString(body.status),
+    feedback: asString(body.userFeedback),
+    summary: asString(body.summary),
+    errorMessage: asString(body.errorMessage),
+    createdAt: asDate(body.createdAt),
+    completedAt: asDate(body.completedAt),
+    raw: body,
+  };
+}
+
+/** Builds an {@link Escalation}. @internal */
+export function parseEscalation(payload: unknown): Escalation {
+  const body = asPayload(payload);
+
+  return {
+    id: asNumber(body.id),
+    status: asString(body.status),
+    severity: asString(body.severity),
+    identity: parseReference(body.identity),
+    rule: parseReference(body.escalationRule),
+    scores: asPayload(body.scoreSnapshot),
+    openedAt: asDate(body.openedAt),
+    acknowledgedAt: asDate(body.acknowledgedAt),
+    closedAt: asDate(body.closedAt),
+    createdAt: asDate(body.createdAt),
+    raw: body,
+  };
+}
+
+/** Builds an {@link EscalationSummary}. @internal */
+export function parseEscalationSummary(payload: unknown): EscalationSummary {
+  const body = asPayload(payload);
+
+  return {
+    open: asNumber(body.open) ?? 0,
+    acknowledged: asNumber(body.acknowledged) ?? 0,
+    closed: asNumber(body.closed) ?? 0,
+    raw: body,
+  };
+}
+
+/** Builds a list of items from an array body, parsing each with `parse`. @internal */
+export function parseList<T>(payload: unknown, parse: (item: RawPayload) => T): T[] {
+  return asArray(payload).map(parse);
 }

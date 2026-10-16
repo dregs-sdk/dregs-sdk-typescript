@@ -38,9 +38,23 @@ export {
   Dregs,
   SECRET_KEY_ENV,
 } from './client.js';
-export type { DregsOptions, FetchLike, TrackOptions } from './client.js';
+export type { DregsOptions, FetchLike, TrackGroup, TrackOptions } from './client.js';
 
-export { Identities } from './resources.js';
+export { Devices, Escalations, Events, Groups, Identities } from './resources.js';
+export type {
+  DeviceFilters,
+  EscalationFilters,
+  EscalationSeverity,
+  EscalationStatus,
+  EventFilters,
+  GroupCreateOptions,
+  GroupFilters,
+  IdentityFilters,
+  IdentityUpdate,
+  ListOptions,
+  PageOptions,
+  SortOrder,
+} from './resources.js';
 
 export {
   AuthenticationError,
@@ -64,10 +78,21 @@ export type {
   Analysis,
   Badge,
   Category,
+  Device,
+  Escalation,
+  EscalationSummary,
+  Event,
+  Group,
+  GroupReference,
   Identity,
+  IdentityReview,
+  LinkedIdentity,
   Observation,
+  Page,
   RawPayload,
+  Reference,
   Score,
+  ScoreHistoryEntry,
   TrackResult,
 } from './models.js';
 
