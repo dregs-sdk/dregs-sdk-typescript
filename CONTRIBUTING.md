@@ -3,7 +3,7 @@
 Thanks for helping improve the Dregs TypeScript SDK.
 
 This SDK is a **port of the reference SDK**, [dregs-sdk-python](https://github.com/dregs-sdk/dregs-sdk-python),
-which the SDKs for TypeScript, Java, Ruby, and PHP all follow in shape. A change to the public
+which the SDKs for TypeScript, Java, Ruby, PHP, Rust, and Elixir all follow in shape. A change to the public
 surface here is a change to all of them, so surface changes are worth discussing in an issue
 before you write the code.
 
