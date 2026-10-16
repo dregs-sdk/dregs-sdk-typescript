@@ -16,3 +16,8 @@ updates:
     groups:
       dev-dependencies:
         dependency-type: 'development'
+    # typescript-eslint caps its TypeScript peer range, so a new TypeScript major breaks npm ci
+    # until typescript-eslint catches up. Take TypeScript majors by hand.
+    ignore:
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
