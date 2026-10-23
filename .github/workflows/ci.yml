@@ -1,6 +1,7 @@
-# Lint, type-check, test, and build. Every job installs with `npm ci`, which installs exactly
+# Lint, type-check, test, and build. Those jobs install with `npm ci`, which installs exactly
 # what package-lock.json pins and fails outright when the lock disagrees with package.json,
-# rather than quietly resolving something other than what was committed.
+# rather than quietly resolving something other than what was committed. The Node 20 job does
+# not install: it only loads the packed build on the engines floor.
 name: CI
 
 on:
@@ -25,7 +26,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24.22.1
           cache: npm
 
       - name: Install
@@ -46,13 +47,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [20, 22, 24]
+        # Majors only. check-latest resolves each one to the newest patched release, so a
+        # security release is used even when the runner image still has the previous build cached.
+        node-version: [22, 24, 26]
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
+          check-latest: true
           cache: npm
 
       - name: Install
@@ -69,7 +73,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24.22.1
           cache: npm
 
       - name: Install
@@ -102,3 +106,32 @@ jobs:
           name: package
           path: dist-package/*.tgz
           retention-days: 7
+
+  # Node 20 is the engines floor. The test runner does not support it, so this job does not
+  # install or test: it loads the tarball the build job packed, on the newest Node 20.
+  load-node-20:
+    name: Load the build on Node 20
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          check-latest: true
+
+      - name: Download the package
+        uses: actions/download-artifact@v8
+        with:
+          name: package
+          path: dist-package
+
+      # npm pack wraps the published files in a `package/` directory. Strip that one level so
+      # `dist/` lands where verify:dist imports it. scripts/ stays from the checkout; the
+      # tarball does not ship it.
+      - name: Unpack the build
+        run: tar -xzf dist-package/*.tgz --strip-components=1
+
+      - name: Load the build as ESM and CommonJS
+        run: npm run verify:dist
