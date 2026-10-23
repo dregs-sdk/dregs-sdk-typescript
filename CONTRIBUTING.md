@@ -9,8 +9,8 @@ before you write the code.
 
 ## Getting set up
 
-You need Node 20 or newer. Nothing else: the SDK itself has no runtime dependencies, and `npm ci`
-installs the locked development set.
+You need Node 20 or newer. Development uses Node 24. Nothing else: the SDK itself has no runtime
+dependencies, and `npm ci` installs the locked development set.
 
 ```bash
 npm ci
@@ -29,7 +29,12 @@ npm run verify:dist       # load dist/ as both ESM and CommonJS
 ```
 
 CI runs exactly these, against the same locked versions, so a green run locally means a green run
-there. Tests run on Node 20, 22, and 24.
+there. Tests run on Node 22, 24, and 26. Node 20, the oldest supported version, only loads the
+built package (`npm run verify:dist`).
+
+`@types/node` is `^22`, the lowest major Vitest accepts, while `engines` stays `>=20`: `tsc` would
+still type-check Node 22-only APIs, but the Node 20 `verify:dist` job catches any that are used at
+runtime.
 
 If you change a dependency in `package.json`, commit the resulting `package-lock.json` alongside
 it. CI installs with `npm ci` and fails if the two disagree.

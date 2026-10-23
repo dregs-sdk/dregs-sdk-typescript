@@ -36,7 +36,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24.22.1
           cache: npm
 
       # A tag that disagrees with the packaged version would publish something other than what
@@ -93,14 +93,12 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24.22.1
           cache: npm
           registry-url: https://registry.npmjs.org
 
-      # Trusted publishing needs npm 11.5.1 or newer, which is ahead of what some runner images
-      # ship with Node 22.
-      - name: Update npm
-        run: npm install --global npm@latest
+      # 24.22.1 bundles npm 11.19.1, which is already past the 11.5.1 trusted publishing
+      # requires, so this job publishes with the npm that ships with Node.
 
       - name: Download the package
         uses: actions/download-artifact@v8

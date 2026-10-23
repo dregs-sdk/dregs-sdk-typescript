@@ -13,7 +13,8 @@ Send events from your backend, read back the scores and the observations behind 
 npm install @dregs/sdk
 ```
 
-Node 20 or newer. No runtime dependencies: the SDK calls the runtime's own `fetch`.
+Supported on Node 20 and up, and tested on Node 22, 24, and 26. Development uses Node 24. No runtime
+dependencies: the SDK calls the runtime's own `fetch`.
 
 > This is the **server-side** SDK, which authenticates with a secret key and can read scores.
 > The browser tracking script is a separate package, [`dregs`](https://www.npmjs.com/package/dregs),
